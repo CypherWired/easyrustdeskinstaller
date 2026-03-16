@@ -78,6 +78,40 @@ mv "$CLIENTNAME" "rustdesk-host=$DOMAIN,key=$KEYNAME.exe"
 echo Client "rustdesk-host=$DOMAIN,key=$KEYNAME.exe" created.
 }
 
+# Generates new keys by deleting the id_ files and executing hbbs in case RustDesk generates invalid ones.
+genkey(){
+if [ ! -d "/opt/rustdesk" ]; then
+        return 1
+fi
+cd /opt/rustdesk/
+if ls id_* 1> /dev/null 2>&1; then
+        rm -f id_*
+fi
+if ls *.pub 1> /dev/null 2>&1; then
+        rm -f *.pub
+fi
+
+echo "Creating new keys..."
+./hbbs > /dev/null 2>&1 &
+HBBS_PID=$!
+COUNTER=0
+while [ ! -f *.pub ] && [ $COUNTER -lt 10 ]; do
+        sleep 1
+        COUNTER=$((COUNTER + 1))
+done
+kill $HBBS_PID 2>/dev/null
+wait $HBBS_PID 2>/dev/null
+
+PUB_FILE=$(ls *.pub 2>/dev/null | head -n1)
+if [ -f "$PUB_FILE" ]; then
+        KEYNAME=$(cat /opt/rustdesk/*.pub)
+        echo "New public key: $KEYNAME"
+    else
+        echo "Error creating keys"
+        return 1
+    fi
+}
+
 # Menu #
 menu() {
 clear
@@ -92,6 +126,7 @@ cat << "EOF"
 2. Update service.
 3. Automatic Portable Client.
 4. See Rustdesk Status.
+5. Generate new keys.
 0. Exit.
 
 EOF
@@ -116,6 +151,9 @@ read -p "Select option: " option
                 ;;
         4)
                 state
+                ;;
+        5)
+                genkey
                 ;;
         0)
                 echo "Bye!"
